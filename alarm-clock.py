@@ -111,6 +111,7 @@ class Application(QApplication):
                     "--expire-time=60000",
                     "--wait",
                     "--app-name=Alarm Clock",
+                    "--icon=alarm-symbolic",
                     summary,
                     body,
                 ],
