@@ -227,6 +227,11 @@ class AlarmEntryWidget(QFrame):
 
         self.boxLayout = QHBoxLayout(self)
         self.boxLayout.setContentsMargins(16, 8, 16, 8)
+        self.boxLayout.setSpacing(12)
+
+        self.enabledCheckbox = QCheckBox(self)
+        self.enabledCheckbox.toggled.connect(self.onEnabledToggle)
+        self.boxLayout.addWidget(self.enabledCheckbox)
 
         self.leftSection = QVBoxLayout()
         self.boxLayout.addLayout(self.leftSection, 1)
@@ -323,6 +328,15 @@ class AlarmEntryWidget(QFrame):
             + '">every</font> '
             + every_text
         )
+
+        self.enabledCheckbox.setChecked(alarm.enabled)
+
+    def onEnabledToggle(self, newValue):
+        if newValue == self.alarm.enabled:
+            return
+
+        self.alarm.enabled = newValue
+        mainWindow.saveConfig()
 
     def editAlarm(self):
         self.editAlarmWindow = EditAlarmWindow(self.alarm)
