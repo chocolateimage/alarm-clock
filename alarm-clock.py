@@ -53,7 +53,8 @@ class Application(QApplication):
         super().__init__(argv)
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
-        self.setQuitOnLastWindowClosed(False)
+        if os.environ.get("ALARMCLOCK_DEBUG", "0") != "1":
+            self.setQuitOnLastWindowClosed(False)
 
         self.configDirectory = os.path.expanduser("~/.local/share/alarm-clock")
         self.configFile = self.configDirectory + "/config.json"
