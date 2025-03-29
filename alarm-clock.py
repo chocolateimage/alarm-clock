@@ -118,6 +118,8 @@ class Application(QApplication):
             )
             self.notificationProcesses.append(notificationProcess)
 
+            mainWindow.reloadAlarms()
+
         self.last_tick = current_tick
 
     def openMainWindow(self):
@@ -338,6 +340,7 @@ class AlarmEntryWidget(QFrame):
             return
 
         self.alarm.enabled = newValue
+        mainWindow.reloadAlarms()
         mainWindow.saveConfig()
 
     def editAlarm(self):
@@ -506,6 +509,10 @@ class MainWindow(QMainWindow):
             self.existingAlarmEntries.append(alarmEntry)
 
         sortedAlarms = sorted(app.alarms, key=lambda alarm: alarm.time)
+        canBeNextAlarm = True
+        currentTime = datetime.now()
+
+        app.trayIcon.setToolTip("Alarm Clock")
 
         for i, alarmEntry in enumerate(list(self.existingAlarmEntries)):
             if i >= len(app.alarms):
@@ -513,7 +520,20 @@ class MainWindow(QMainWindow):
                 self.existingAlarmEntries.pop()
                 continue
 
-            alarmEntry.loadFromAlarm(sortedAlarms[i])
+            alarm = sortedAlarms[i]
+
+            if (
+                canBeNextAlarm
+                and alarm.enabled
+                and currentTime.weekday() in alarm.repeat
+                and alarm.time > currentTime.time()
+            ):
+                canBeNextAlarm = False
+                app.trayIcon.setToolTip(
+                    "Next alarm: " + alarm.name + " at " + alarm.time.strftime("%X")
+                )
+
+            alarmEntry.loadFromAlarm(alarm)
 
 
 if __name__ == "__main__":
