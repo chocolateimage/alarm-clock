@@ -542,6 +542,11 @@ if __name__ == "__main__":
     locale.setlocale(locale.LC_ALL, "")
 
     app = Application(sys.argv)
+    if app.palette().base().color().red() < 128:
+        originalIconTheme = QIcon.themeName()
+        QIcon.setThemeName("breeze-dark")
+        if not QIcon.hasThemeIcon("list-add-symbolic"):
+            QIcon.setThemeName(originalIconTheme)
 
     mainWindow = MainWindow()
     if "hidden" not in sys.argv:
