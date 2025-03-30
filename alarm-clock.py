@@ -546,7 +546,7 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    os.environ["QT_QPA_PLATFORMTHEME"] = "gtk3"  # Allows dark mode in Qt6
+    os.environ["QT_QPA_PLATFORMTHEME"] = ""  # Allows dark mode in Qt6
     locale.setlocale(locale.LC_ALL, "")
 
     app = Application(sys.argv)
