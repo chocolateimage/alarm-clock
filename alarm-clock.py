@@ -456,10 +456,18 @@ class MainWindow(QMainWindow):
     def addNewAlarm(self):
         self.newAlarmWindow = EditAlarmWindow()
         self.newAlarmWindow.show()
+        self.newAlarmWindow.move(
+            int(self.x() + self.width() / 2 - self.newAlarmWindow.width() / 2),
+            int(self.y() + self.height() / 2 - self.newAlarmWindow.height() / 2),
+        )
 
     def openPreferences(self):
         self.preferencesWindow = PreferencesWindow()
         self.preferencesWindow.show()
+        self.preferencesWindow.move(
+            int(self.x() + self.width() / 2 - self.preferencesWindow.width() / 2),
+            int(self.y() + self.height() / 2 - self.preferencesWindow.height() / 2),
+        )
 
     def loadConfig(self):
         if not os.path.exists(app.configFile):
