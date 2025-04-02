@@ -88,7 +88,7 @@ class Application(QApplication):
         for alarm in self.alarms:
             if not alarm.enabled:
                 continue
-            if current_tick.weekday() not in alarm.repeat:
+            if len(alarm.repeat) > 0 and current_tick.weekday() not in alarm.repeat:
                 continue
             if alarm.time < self.last_tick.time() or alarm.time > current_tick.time():
                 continue
@@ -118,6 +118,10 @@ class Application(QApplication):
                 ],
             )
             self.notificationProcesses.append(notificationProcess)
+
+            if len(alarm.repeat) == 0:
+                alarm.enabled = False
+                mainWindow.saveConfig()
 
             mainWindow.reloadAlarms()
 
@@ -167,6 +171,25 @@ class EditAlarmWindow(QWidget):
 
         self.boxLayout.addLayout(self.repeatLayout, 0)
 
+        self.repeatPresetLayout = QHBoxLayout()
+        self.repeatPresetLayout.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self.repeatPresetOnce = QPushButton("Once", self)
+        self.repeatPresetOnce.setToolTip(
+            "Set to never repeat, this means that the alarm will only be run once and then disabled."
+        )
+        self.repeatPresetOnce.clicked.connect(self.setRepeatOnce)
+        self.repeatPresetLayout.addWidget(self.repeatPresetOnce)
+
+        self.repeatPresetEveryDay = QPushButton("Every day", self)
+        self.repeatPresetEveryDay.setToolTip(
+            "Set to repeat every day in the week, this is the default when creating a new alarm."
+        )
+        self.repeatPresetEveryDay.clicked.connect(self.setRepeatEveryDay)
+        self.repeatPresetLayout.addWidget(self.repeatPresetEveryDay)
+
+        self.boxLayout.addLayout(self.repeatPresetLayout, 0)
+
         self.boxLayout.addWidget(QLabel("Name:", self))
 
         self.nameEntry = QLineEdit(self)
@@ -193,6 +216,14 @@ class EditAlarmWindow(QWidget):
         self.buttonsLayout.addWidget(self.cancelButton)
 
         self.boxLayout.addLayout(self.buttonsLayout, 1)
+
+    def setRepeatOnce(self):
+        for checkbox in self.repeatCheckBoxes:
+            checkbox.setChecked(False)
+
+    def setRepeatEveryDay(self):
+        for checkbox in self.repeatCheckBoxes:
+            checkbox.setChecked(True)
 
     def save(self):
         self.alarm.repeat.clear()
@@ -322,16 +353,18 @@ class AlarmEntryWidget(QFrame):
             self.titleLabel.setDisabled(False)
 
         time_text = alarm.time.strftime("%X")
-        every_text = ", ".join(map(lambda x: calendar.day_abbr[x], alarm.repeat))
+
         if len(alarm.repeat) == 7:
-            every_text = '<font color="' + getGrayColor() + '">day</font>'
+            every_text = "every day</font>"
+        elif len(alarm.repeat) == 0:
+            every_text = "once</font>"
+        else:
+            every_text = "every</font> " + ", ".join(
+                map(lambda x: calendar.day_abbr[x], alarm.repeat)
+            )
 
         self.timeLabel.setText(
-            time_text
-            + ' <font color="'
-            + getGrayColor()
-            + '">every</font> '
-            + every_text
+            time_text + ' <font color="' + getGrayColor() + '">' + every_text
         )
 
         self.enabledCheckbox.setChecked(alarm.enabled)
