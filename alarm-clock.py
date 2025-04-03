@@ -24,6 +24,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QTimeEdit,
     QCheckBox,
+    QRadioButton,
+    QGraphicsOpacityEffect,
 )
 
 
@@ -43,7 +45,7 @@ def getGrayColor():
 class Alarm:
     def __init__(self):
         self.name = ""
-        self.repeat = [0, 1, 2, 3, 4, 5, 6]
+        self.repeat = []  # Repeat is from 0-6 (Monday - Sunday)
         self.time = time(0, 0, 0)
         self.enabled = True
 
@@ -147,48 +149,80 @@ class EditAlarmWindow(QWidget):
 
         self.boxLayout = QVBoxLayout(self)
 
-        self.boxLayout.addWidget(QLabel("Time:", self))
-
         self.timeEntry = QTimeEdit(self)
+
+        timeFont = self.timeEntry.font()
+        timeFont.setPointSize(16)
+        self.timeEntry.setFont(timeFont)
+        self.timeEntry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self.timeEntry.setDisplayFormat("HH:mm:ss")
         self.timeEntry.setTime(
             QTime(self.alarm.time.hour, self.alarm.time.minute, self.alarm.time.second)
         )
         self.boxLayout.addWidget(self.timeEntry)
 
-        self.boxLayout.addWidget(QLabel("Repeat:", self))
+        self.repeatOptionsLayout = QVBoxLayout()
+        self.repeatOptionsLayout.setContentsMargins(0, 0, 0, 0)
+        self.repeatOptionsLayout.setSpacing(0)
+
+        self.repeatOnce = QRadioButton("Once", self)
+        self.repeatOnce.toggled.connect(self.updateRepeatState)
+        self.repeatOnce.setToolTip(
+            "Set to never repeat, this means that the alarm will only be run once and then disabled"
+        )
+        self.repeatOptionsLayout.addWidget(self.repeatOnce)
+
+        self.repeatEveryBusinessDay = QRadioButton("Every business day", self)
+        self.repeatEveryBusinessDay.toggled.connect(self.updateRepeatState)
+        self.repeatEveryBusinessDay.setToolTip("Repeat Monday to Friday")
+        self.repeatOptionsLayout.addWidget(self.repeatEveryBusinessDay)
+
+        self.repeatEveryDay = QRadioButton("Every day", self)
+        self.repeatEveryDay.toggled.connect(self.updateRepeatState)
+        self.repeatEveryDay.setToolTip("Repeat every day in the week")
+        self.repeatOptionsLayout.addWidget(self.repeatEveryDay)
+
+        self.repeatCustom = QRadioButton("Custom repeat", self)
+        self.repeatCustom.toggled.connect(self.updateRepeatState)
+        self.repeatCustom.setToolTip("Set your own days you want it to repeat to")
+        self.repeatOptionsLayout.addWidget(self.repeatCustom)
+
+        self.boxLayout.addLayout(self.repeatOptionsLayout)
 
         self.repeatLayout = QHBoxLayout()
         self.repeatCheckBoxes = []
         for day in range(7):
-            repeatCheckBox = QCheckBox(calendar.day_abbr[day], self)
+            repeatCheckBox = QPushButton(calendar.day_abbr[day], self)
+            repeatCheckBox.setFixedWidth(32)
+            repeatCheckBox.setDisabled(True)
+            effect = QGraphicsOpacityEffect(repeatCheckBox)
+            effect.setEnabled(True)
+            effect.setOpacity(0.4)
+            repeatCheckBox.setGraphicsEffect(effect)
 
-            if day in self.alarm.repeat:
-                repeatCheckBox.setChecked(True)
+            # day=day is required to freeze the current day, else Python would use the last day variable
+            repeatCheckBox.clicked.connect(
+                lambda event, day=day: self.toggleRepeatButton(day)
+            )
 
             self.repeatLayout.addWidget(repeatCheckBox)
             self.repeatCheckBoxes.append(repeatCheckBox)
 
-        self.boxLayout.addLayout(self.repeatLayout, 0)
+        self.unsavedRepeatDays = []
+        for day in self.alarm.repeat:
+            self.toggleRepeatButton(day)
 
-        self.repeatPresetLayout = QHBoxLayout()
-        self.repeatPresetLayout.setAlignment(Qt.AlignmentFlag.AlignRight)
+        if len(self.alarm.repeat) == 0:
+            self.repeatOnce.setChecked(True)
+        elif len(self.alarm.repeat) == 7:
+            self.repeatEveryDay.setChecked(True)
+        elif json.dumps(self.alarm.repeat) == "[0, 1, 2, 3, 4]":
+            self.repeatEveryBusinessDay.setChecked(True)
+        else:
+            self.repeatCustom.setChecked(True)
 
-        self.repeatPresetOnce = QPushButton("Once", self)
-        self.repeatPresetOnce.setToolTip(
-            "Set to never repeat, this means that the alarm will only be run once and then disabled."
-        )
-        self.repeatPresetOnce.clicked.connect(self.setRepeatOnce)
-        self.repeatPresetLayout.addWidget(self.repeatPresetOnce)
-
-        self.repeatPresetEveryDay = QPushButton("Every day", self)
-        self.repeatPresetEveryDay.setToolTip(
-            "Set to repeat every day in the week, this is the default when creating a new alarm."
-        )
-        self.repeatPresetEveryDay.clicked.connect(self.setRepeatEveryDay)
-        self.repeatPresetLayout.addWidget(self.repeatPresetEveryDay)
-
-        self.boxLayout.addLayout(self.repeatPresetLayout, 0)
+        self.repeatOptionsLayout.addLayout(self.repeatLayout, 0)
 
         self.boxLayout.addWidget(QLabel("Name:", self))
 
@@ -217,19 +251,44 @@ class EditAlarmWindow(QWidget):
 
         self.boxLayout.addLayout(self.buttonsLayout, 1)
 
-    def setRepeatOnce(self):
-        for checkbox in self.repeatCheckBoxes:
-            checkbox.setChecked(False)
+    def toggleRepeatButton(self, day):
+        if day in self.unsavedRepeatDays:
+            self.unsavedRepeatDays.remove(day)
+            self.repeatCheckBoxes[day].setStyleSheet("")
+        else:
+            self.unsavedRepeatDays.append(day)
+            self.unsavedRepeatDays.sort()
+            self.repeatCheckBoxes[day].setStyleSheet(
+                "background: " + self.palette().base().color().name() + ";"
+            )
 
-    def setRepeatEveryDay(self):
+    def updateRepeatState(self, check):
+        if not check:
+            return
+
+        if self.repeatOnce.isChecked():
+            for day in list(self.unsavedRepeatDays):
+                self.toggleRepeatButton(day)
+        elif self.repeatEveryDay.isChecked():
+            for day in list(self.unsavedRepeatDays):
+                self.toggleRepeatButton(day)
+
+            for day in range(7):
+                self.toggleRepeatButton(day)
+        elif self.repeatEveryBusinessDay.isChecked():
+            for day in list(self.unsavedRepeatDays):
+                self.toggleRepeatButton(day)
+
+            for day in range(5):
+                self.toggleRepeatButton(day)
+
+        isCustom = self.repeatCustom.isChecked()
         for checkbox in self.repeatCheckBoxes:
-            checkbox.setChecked(True)
+            checkbox.setDisabled(not isCustom)
+            checkbox.graphicsEffect().setEnabled(not isCustom)
 
     def save(self):
-        self.alarm.repeat.clear()
-        for day, checkBox in enumerate(self.repeatCheckBoxes):
-            if checkBox.isChecked():
-                self.alarm.repeat.append(day)
+        self.alarm.repeat = list(self.unsavedRepeatDays)
 
         newTime = self.timeEntry.time()
         self.alarm.time = time(newTime.hour(), newTime.minute(), newTime.second())
