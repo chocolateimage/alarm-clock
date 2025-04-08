@@ -7,7 +7,7 @@ import calendar
 import subprocess
 import signal
 from datetime import datetime, time
-from PyQt6.QtCore import Qt, QTimer, QTime
+from PyQt6.QtCore import Qt, QTimer, QTime, QSize
 from PyQt6.QtGui import QIcon, QColor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -341,7 +341,7 @@ class AlarmEntryWidget(QFrame):
         self.timeLabel.setFont(createCustomFont(12))
         self.leftSection.addWidget(self.timeLabel)
 
-        self.actionsLayout = QVBoxLayout()
+        self.actionsLayout = QHBoxLayout()
         self.actionsLayout.setContentsMargins(0, 0, 0, 0)
         self.actionsLayout.setSpacing(4)
 
@@ -376,21 +376,23 @@ class AlarmEntryWidget(QFrame):
                 if os.path.exists(i):
                     self.editButton.setIcon(QIcon(i))
                     break
+        self.editButton.setIconSize(QSize(20, 20))
         self.editButton.clicked.connect(self.editAlarm)
         self.actionsLayout.addWidget(
             self.editButton,
             0,
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
         )
 
         self.removeButton = QPushButton(self)
         self.removeButton.setFlat(True)
         self.removeButton.setIcon(QIcon.fromTheme("edit-delete-symbolic"))
+        self.removeButton.setIconSize(QSize(20, 20))
         self.removeButton.clicked.connect(self.removeAlarm)
         self.actionsLayout.addWidget(
             self.removeButton,
             0,
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
         )
 
         self.boxLayout.addLayout(self.actionsLayout, 0)
