@@ -55,7 +55,7 @@ class Application(QApplication):
         super().__init__(argv)
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
-        self.setApplicationVersion("1.0.0")
+        self.setApplicationVersion("1.1.0")
         if os.environ.get("ALARMCLOCK_DEBUG", "0") != "1":
             self.setQuitOnLastWindowClosed(False)
 
