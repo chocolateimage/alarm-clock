@@ -1,5 +1,9 @@
 # Alarm Clock
 
+A simple to use alarm clock for Linux with Outlook reminder integration.
+
+---
+
 Requirements:
 
 ```sh
