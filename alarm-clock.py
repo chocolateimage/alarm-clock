@@ -6,9 +6,11 @@ import locale
 import calendar
 import subprocess
 import signal
-from datetime import datetime, time
+import requests
+import urllib
+from datetime import datetime, time, timezone, timedelta
 from PyQt6.QtCore import Qt, QTimer, QTime, QSize
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtGui import QIcon, QColor, QCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -26,6 +28,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QRadioButton,
     QGraphicsOpacityEffect,
+    QMessageBox,
 )
 
 
@@ -48,6 +51,16 @@ class Alarm:
         self.repeat = []  # Repeat is from 0-6 (Monday - Sunday)
         self.time = time(0, 0, 0)
         self.enabled = True
+
+
+class OutlookReminder:
+    def __init__(self):
+        self.id = ""
+        self.subject = ""
+        self.location = ""
+        self.reminderTime = datetime.now()
+        self.startDate = datetime.now()
+        self.endDate = datetime.now()
 
 
 class Application(QApplication):
@@ -75,6 +88,7 @@ class Application(QApplication):
         self.trayIcon.show()
 
         self.alarms: list[Alarm] = []
+        self.outlookReminders: list[OutlookReminder] = []
 
         self.notificationProcesses: list[subprocess.Popen] = []
 
@@ -126,6 +140,48 @@ class Application(QApplication):
                 mainWindow.saveConfig()
 
             mainWindow.reloadAlarms()
+
+        for reminder in self.outlookReminders:
+            if reminder.reminderTime < self.last_tick.astimezone(
+                timezone.utc
+            ) or reminder.reminderTime > current_tick.astimezone(timezone.utc):
+                continue
+
+            summary = reminder.subject
+
+            formattedStartTime = (
+                reminder.startDate.astimezone(current_tick.tzinfo)
+                .time()
+                .strftime("%H:%M:%S")
+            )
+            formattedEndTime = (
+                reminder.endDate.astimezone(current_tick.tzinfo)
+                .time()
+                .strftime("%H:%M:%S")
+            )
+
+            body = (
+                "In "
+                + reminder.location
+                + ", at "
+                + formattedStartTime
+                + " - "
+                + formattedEndTime
+            )
+
+            notificationProcess = subprocess.Popen(
+                [
+                    "notify-send",
+                    "--urgency=critical",
+                    "--expire-time=60000",
+                    "--wait",
+                    "--app-name=Alarm Clock",
+                    "--icon=alarm-symbolic",
+                    summary,
+                    body,
+                ],
+            )
+            self.notificationProcesses.append(notificationProcess)
 
         self.last_tick = current_tick
 
@@ -503,6 +559,19 @@ class MainWindow(QMainWindow):
         self.toolBar.addAction(
             QIcon.fromTheme("preferences-system-symbolic"), "Preferences"
         ).triggered.connect(self.openPreferences)
+
+        self.outlookAction = self.toolBar.addAction(
+            QIcon.fromTheme("mail-client"), "Outlook"
+        )
+        self.outlookMenu = QMenu()
+        self.outlookMenu.addAction("Synchronize...").triggered.connect(
+            self.connectWithOutlook
+        )
+        self.reminderCountAction = self.outlookMenu.addAction("")
+        self.reminderCountAction.setDisabled(True)
+        self.outlookAction.setMenu(self.outlookMenu)
+        self.outlookAction.triggered.connect(self.openOutlookMenu)
+
         self.toolBar.setMovable(False)
         self.toolBar.setStyleSheet("#toolBar {border: none;}")
 
@@ -563,6 +632,127 @@ class MainWindow(QMainWindow):
             int(self.y() + self.height() / 2 - self.preferencesWindow.height() / 2),
         )
 
+    def openOutlookMenu(self):
+        self.outlookMenu.move(QCursor.pos())
+        self.outlookMenu.show()
+
+    def connectWithOutlook(self):
+        try:
+            from selenium import webdriver
+            from selenium.webdriver import ChromeOptions
+        except ImportError:
+            QMessageBox.critical(
+                self, "Missing libraries", "You need Selenium for Python installed."
+            )
+            return
+
+        options = ChromeOptions()
+        options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        options.add_argument("user-data-dir=" + app.configDirectory + "/browser")
+        driver = webdriver.Chrome(options=options)
+
+        driver.get("https://outlook.office.com")
+
+        try:
+            while "https://login.microsoftonline.com" not in driver.current_url:
+                driver.implicitly_wait(1)
+
+            while "https://outlook.office.com/mail" not in driver.current_url:
+                driver.implicitly_wait(1)
+        except Exception:
+            return
+
+        token = ""
+        while token == "":
+            for i in driver.get_log("performance"):
+                message = json.loads(i["message"])["message"]
+                if "params" not in message:
+                    continue
+                if "request" not in message["params"]:
+                    continue
+                if "headers" not in message["params"]["request"]:
+                    continue
+                if "authorization" not in message["params"]["request"]["headers"]:
+                    continue
+
+                auth_token = (
+                    message.get("params", {})
+                    .get("request", {})
+                    .get("headers", {})
+                    .get("authorization", "")
+                )
+                if auth_token == "":
+                    continue
+
+                resp = requests.post(
+                    "https://outlook.office.com/owa/service.svc",
+                    headers={"authorization": auth_token},
+                )
+
+                # Microsoft would respond with 404 in success
+                if resp.status_code != 404:
+                    continue
+
+                token = auth_token
+                break
+
+        driver.close()
+
+        now = datetime.now(timezone.utc)
+
+        postData = {
+            "__type": "GetRemindersJsonRequest:#Exchange",
+            "Header": {
+                "__type": "JsonRequestHeaders:#Exchange",
+                "RequestServerVersion": "V2018_01_08",
+            },
+            "Body": {
+                "__type": "GetRemindersRequest:#Exchange",
+                "BeginTime": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "EndTime": (now + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "ReminderType": 1,
+            },
+        }
+
+        resp = requests.post(
+            "https://outlook.office.com/owa/service.svc",
+            headers={
+                "authorization": token,
+                "action": "GetReminders",
+                "x-owa-urlpostdata": urllib.parse.quote(json.dumps(postData)),
+            },
+        )
+
+        app.outlookReminders = []
+        for rawReminder in resp.json()["Body"]["Reminders"]:
+            reminderTime = datetime.fromisoformat(rawReminder["ReminderTime"])
+
+            if reminderTime < now:
+                continue
+
+            outlookReminder = OutlookReminder()
+            outlookReminder.id = rawReminder["UID"]
+            outlookReminder.subject = rawReminder["Subject"]
+            outlookReminder.location = rawReminder["Location"]
+            outlookReminder.reminderTime = datetime.fromisoformat(
+                rawReminder["ReminderTime"]
+            )
+            outlookReminder.startDate = datetime.fromisoformat(rawReminder["StartDate"])
+            outlookReminder.endDate = datetime.fromisoformat(rawReminder["EndDate"])
+
+            app.outlookReminders.append(outlookReminder)
+
+        self.saveConfig()
+        self.reloadAlarms()
+
+        QMessageBox.information(
+            self,
+            "Outlook Reminders",
+            "Successfully imported "
+            + str(len(app.outlookReminders))
+            + " reminders from Outlook.",
+        )
+
     def loadConfig(self):
         if not os.path.exists(app.configFile):
             self.reloadAlarms()
@@ -579,6 +769,19 @@ class MainWindow(QMainWindow):
 
                 app.alarms.append(alarm)
 
+            for rawReminder in config.get("outlookReminders", []):
+                reminder = OutlookReminder()
+                reminder.id = rawReminder["id"]
+                reminder.subject = rawReminder["subject"]
+                reminder.location = rawReminder["location"]
+                reminder.reminderTime = datetime.fromisoformat(
+                    rawReminder["reminderTime"]
+                )
+                reminder.startDate = datetime.fromisoformat(rawReminder["startDate"])
+                reminder.endDate = datetime.fromisoformat(rawReminder["endDate"])
+
+                app.outlookReminders.append(reminder)
+
         self.reloadAlarms()
 
     def saveConfig(self):
@@ -594,6 +797,18 @@ class MainWindow(QMainWindow):
             rawAlarm["enabled"] = alarm.enabled
 
             config["alarms"].append(rawAlarm)
+
+        config["outlookReminders"] = []
+        for reminder in app.outlookReminders:
+            rawReminder = {}
+            rawReminder["id"] = reminder.id
+            rawReminder["subject"] = reminder.subject
+            rawReminder["location"] = reminder.location
+            rawReminder["reminderTime"] = reminder.reminderTime.isoformat()
+            rawReminder["startDate"] = reminder.startDate.isoformat()
+            rawReminder["endDate"] = reminder.endDate.isoformat()
+
+            config["outlookReminders"].append(rawReminder)
 
         with open(app.configFile, "w+") as f:
             json.dump(config, f)
@@ -637,6 +852,8 @@ class MainWindow(QMainWindow):
                 )
 
             alarmEntry.loadFromAlarm(alarm)
+
+        self.reminderCountAction.setText(str(len(app.outlookReminders)) + " reminders")
 
 
 if __name__ == "__main__":
