@@ -666,14 +666,6 @@ class MainWindow(QMainWindow):
         while token == "":
             for i in driver.get_log("performance"):
                 message = json.loads(i["message"])["message"]
-                if "params" not in message:
-                    continue
-                if "request" not in message["params"]:
-                    continue
-                if "headers" not in message["params"]["request"]:
-                    continue
-                if "authorization" not in message["params"]["request"]["headers"]:
-                    continue
 
                 auth_token = (
                     message.get("params", {})
