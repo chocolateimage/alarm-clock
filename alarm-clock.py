@@ -69,8 +69,9 @@ class Application(QApplication):
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
         self.setApplicationVersion("1.1.0")
-        if os.environ.get("ALARMCLOCK_DEBUG", "0") != "1":
-            self.setQuitOnLastWindowClosed(False)
+
+        self.debug = os.environ.get("ALARMCLOCK_DEBUG", "0") == "1"
+        self.setQuitOnLastWindowClosed(self.debug)
 
         self.configDirectory = os.path.expanduser("~/.local/share/alarm-clock")
         self.configFile = self.configDirectory + "/config.json"
@@ -846,6 +847,12 @@ class MainWindow(QMainWindow):
             alarmEntry.loadFromAlarm(alarm)
 
         self.reminderCountAction.setText(str(len(app.outlookReminders)) + " reminders")
+
+    def closeEvent(self, event):
+        if app.debug:
+            app.quit()
+
+        return super().closeEvent(event)
 
 
 if __name__ == "__main__":
