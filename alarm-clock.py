@@ -8,6 +8,7 @@ import subprocess
 import signal
 import requests
 import urllib
+import shutil
 from datetime import datetime, time, timezone, timedelta
 from PyQt6.QtCore import Qt, QTimer, QTime, QSize
 from PyQt6.QtGui import QIcon, QColor, QCursor
@@ -640,7 +641,7 @@ class MainWindow(QMainWindow):
     def connectWithOutlook(self):
         try:
             from selenium import webdriver  # type: ignore
-            from selenium.webdriver import ChromeOptions  # type: ignore
+            from selenium.webdriver import ChromeOptions, ChromeService  # type: ignore
             from selenium.common.exceptions import NoSuchDriverException  # type: ignore
         except ImportError:
             QMessageBox.critical(
@@ -651,8 +652,11 @@ class MainWindow(QMainWindow):
         options = ChromeOptions()
         options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
         options.add_argument("user-data-dir=" + app.configDirectory + "/browser")
+
+        service = ChromeService(executable_path=shutil.which("chromedriver"))
+
         try:
-            driver = webdriver.Chrome(options=options)
+            driver = webdriver.Chrome(options=options, service=service)
         except NoSuchDriverException:
             QMessageBox.critical(
                 self,
