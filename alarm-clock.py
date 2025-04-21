@@ -638,8 +638,8 @@ class MainWindow(QMainWindow):
 
     def connectWithOutlook(self):
         try:
-            from selenium import webdriver
-            from selenium.webdriver import ChromeOptions
+            from selenium import webdriver  # type: ignore
+            from selenium.webdriver import ChromeOptions  # type: ignore
         except ImportError:
             QMessageBox.critical(
                 self, "Missing libraries", "You need Selenium for Python installed."
