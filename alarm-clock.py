@@ -641,6 +641,7 @@ class MainWindow(QMainWindow):
         try:
             from selenium import webdriver  # type: ignore
             from selenium.webdriver import ChromeOptions  # type: ignore
+            from selenium.common.exceptions import NoSuchDriverException  # type: ignore
         except ImportError:
             QMessageBox.critical(
                 self, "Missing libraries", "You need Selenium for Python installed."
@@ -650,7 +651,15 @@ class MainWindow(QMainWindow):
         options = ChromeOptions()
         options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
         options.add_argument("user-data-dir=" + app.configDirectory + "/browser")
-        driver = webdriver.Chrome(options=options)
+        try:
+            driver = webdriver.Chrome(options=options)
+        except NoSuchDriverException:
+            QMessageBox.critical(
+                self,
+                "Missing libraries",
+                "You have Selenium for Python installed, but are missing the ChromeDriver.",
+            )
+            return
 
         driver.get("https://outlook.office.com")
 
