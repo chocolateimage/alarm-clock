@@ -9,6 +9,7 @@ import signal
 import requests
 import urllib
 import shutil
+from time import sleep
 from datetime import datetime, time, timezone, timedelta
 from PyQt6.QtCore import Qt, QTimer, QTime, QSize
 from PyQt6.QtGui import QIcon, QColor, QCursor
@@ -91,6 +92,7 @@ class Application(QApplication):
 
         self.alarms: list[Alarm] = []
         self.outlookReminders: list[OutlookReminder] = []
+        self.outlookToken = ""
 
         self.notificationProcesses: list[subprocess.Popen] = []
 
@@ -567,7 +569,7 @@ class MainWindow(QMainWindow):
         )
         self.outlookMenu = QMenu()
         self.outlookMenu.addAction("Synchronize...").triggered.connect(
-            self.connectWithOutlook
+            self.synchronizeOutlook
         )
         self.reminderCountAction = self.outlookMenu.addAction("")
         self.reminderCountAction.setDisabled(True)
@@ -676,8 +678,8 @@ class MainWindow(QMainWindow):
         except Exception:
             return
 
-        token = ""
-        while token == "":
+        app.outlookToken = ""
+        while app.outlookToken == "":
             for i in driver.get_log("performance"):
                 message = json.loads(i["message"])["message"]
 
@@ -699,10 +701,18 @@ class MainWindow(QMainWindow):
                 if resp.status_code != 404:
                     continue
 
-                token = auth_token
+                app.outlookToken = auth_token
                 break
+            sleep(1)
 
         driver.close()
+
+        self.synchronizeOutlook()
+
+    def synchronizeOutlook(self):
+        if app.outlookToken == "":
+            self.connectWithOutlook()
+            return
 
         now = datetime.now(timezone.utc)
 
@@ -723,11 +733,15 @@ class MainWindow(QMainWindow):
         resp = requests.post(
             "https://outlook.office.com/owa/service.svc",
             headers={
-                "authorization": token,
+                "authorization": app.outlookToken,
                 "action": "GetReminders",
                 "x-owa-urlpostdata": urllib.parse.quote(json.dumps(postData)),
             },
         )
+
+        if resp.status_code != 200:
+            self.connectWithOutlook()
+            return
 
         app.outlookReminders = []
         for rawReminder in resp.json()["Body"]["Reminders"]:
@@ -788,6 +802,8 @@ class MainWindow(QMainWindow):
 
                 app.outlookReminders.append(reminder)
 
+            app.outlookToken = config.get("outlookToken", "")
+
         self.reloadAlarms()
 
     def saveConfig(self):
@@ -815,6 +831,8 @@ class MainWindow(QMainWindow):
             rawReminder["endDate"] = reminder.endDate.isoformat()
 
             config["outlookReminders"].append(rawReminder)
+
+        config["outlookToken"] = app.outlookToken
 
         with open(app.configFile, "w+") as f:
             json.dump(config, f)
