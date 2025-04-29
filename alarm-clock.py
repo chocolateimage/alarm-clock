@@ -682,6 +682,11 @@ class MainWindow(QMainWindow):
             while "https://outlook.office.com/mail" not in driver.current_url:
                 driver.implicitly_wait(1)
         except Exception:
+            QMessageBox.information(
+                self,
+                "Cancelled",
+                "Login has been cancelled. Not synchronizing.",
+            )
             return
 
         app.outlookToken = ""
