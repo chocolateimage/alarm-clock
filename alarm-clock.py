@@ -201,6 +201,7 @@ class EditAlarmWindow(QWidget):
 
         self.alarm = alarm
 
+        self.setWindowIcon(QIcon.fromTheme("alarm-symbolic"))
         if alarm is None:
             self.setWindowTitle("Create new alarm")
             self.alarm = Alarm()
@@ -515,6 +516,9 @@ class PreferencesWindow(QWidget):
         self.boxLayout = QVBoxLayout(self)
         self.setMaximumSize(0, 0)
 
+        self.setWindowIcon(QIcon.fromTheme("settings-configure-symbolic"))
+        self.setWindowTitle("Preferences")
+
         self.autostartFilepath = os.path.expanduser(
             "~/.config/autostart/alarm-clock.desktop"
         )
@@ -553,6 +557,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.resize(800, 500)
+
+        self.setWindowIcon(QIcon.fromTheme("alarm-symbolic"))
 
         self.toolBar = self.addToolBar("")
         self.toolBar.setObjectName("toolBar")
