@@ -574,9 +574,9 @@ class MainWindow(QMainWindow):
             QIcon.fromTheme("mail-client"), "Outlook"
         )
         self.outlookMenu = QMenu()
-        self.outlookMenu.addAction("Synchronize...").triggered.connect(
-            self.synchronizeOutlook
-        )
+        self.synchronizeAction = self.outlookMenu.addAction("Synchronize...")
+        self.synchronizeAction.setIcon(QIcon.fromTheme("mail-download-later-symbolic"))
+        self.synchronizeAction.triggered.connect(self.synchronizeOutlook)
         self.reminderCountAction = self.outlookMenu.addAction("")
         self.reminderCountAction.setDisabled(True)
         self.outlookAction.setMenu(self.outlookMenu)
