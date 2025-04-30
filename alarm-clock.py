@@ -84,12 +84,17 @@ class Application(QApplication):
 
         self.trayMenu = QMenu()
         self.trayIcon.activated.connect(self.openMainWindow)
-        self.trayMenu.addAction(
+
+        self.openAction = self.trayMenu.addAction(
             QIcon.fromTheme("arrow-up-symbolic"), "&Open"
-        ).triggered.connect(self.openMainWindow)
-        self.trayMenu.addAction(
+        )
+        self.openAction.triggered.connect(self.openMainWindow)
+        self.trayMenuBottomSeparator = self.trayMenu.addSeparator()
+        self.quitAction = self.trayMenu.addAction(
             QIcon.fromTheme("application-exit-symbolic"), "&Quit"
-        ).triggered.connect(self.quit)
+        )
+        self.quitAction.triggered.connect(self.quit)
+
         self.trayIcon.setContextMenu(self.trayMenu)
 
         self.trayIcon.show()
@@ -585,6 +590,7 @@ class MainWindow(QMainWindow):
         self.reminderCountAction.setDisabled(True)
         self.outlookAction.setMenu(self.outlookMenu)
         self.outlookAction.triggered.connect(self.openOutlookMenu)
+        app.trayMenu.insertAction(app.trayMenuBottomSeparator, self.outlookAction)
 
         self.toolBar.setMovable(False)
         self.toolBar.setStyleSheet("#toolBar {border: none;}")
