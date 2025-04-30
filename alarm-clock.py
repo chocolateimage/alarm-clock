@@ -569,7 +569,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowIcon(QIcon.fromTheme("alarm-symbolic"))
 
-        self.toolBar = self.addToolBar("")
+        self.toolBar = self.addToolBar("Toolbar")
         self.toolBar.setObjectName("toolBar")
         self.toolBar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.toolBar.addAction(
@@ -594,6 +594,7 @@ class MainWindow(QMainWindow):
 
         self.toolBar.setMovable(False)
         self.toolBar.setStyleSheet("#toolBar {border: none;}")
+        self.toolBar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
 
         self.mainWidget = QScrollArea(self)
         self.mainWidget.setWidgetResizable(True)
