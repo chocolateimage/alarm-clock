@@ -84,8 +84,12 @@ class Application(QApplication):
 
         self.trayMenu = QMenu()
         self.trayIcon.activated.connect(self.openMainWindow)
-        self.trayMenu.addAction("&Open").triggered.connect(self.openMainWindow)
-        self.trayMenu.addAction("&Quit").triggered.connect(self.quit)
+        self.trayMenu.addAction(
+            QIcon.fromTheme("arrow-up-symbolic"), "&Open"
+        ).triggered.connect(self.openMainWindow)
+        self.trayMenu.addAction(
+            QIcon.fromTheme("application-exit-symbolic"), "&Quit"
+        ).triggered.connect(self.quit)
         self.trayIcon.setContextMenu(self.trayMenu)
 
         self.trayIcon.show()
