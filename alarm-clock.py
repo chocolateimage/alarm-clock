@@ -9,9 +9,10 @@ import signal
 import requests
 import urllib
 import shutil
+import threading
 from time import sleep
 from datetime import datetime, time, timezone, timedelta
-from PyQt6.QtCore import Qt, QTimer, QTime, QSize
+from PyQt6.QtCore import Qt, QTimer, QTime, QSize, pyqtSignal
 from PyQt6.QtGui import QIcon, QColor, QCursor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -31,6 +32,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QGraphicsOpacityEffect,
     QMessageBox,
+    QProgressDialog,
 )
 
 
@@ -563,6 +565,12 @@ Categories=""")
 
 
 class MainWindow(QMainWindow):
+    progressDialogSetValue = pyqtSignal(int)
+    progressDialogSetLabel = pyqtSignal(str)
+    progressDialogClose = pyqtSignal()
+    openMessageBox = pyqtSignal(str, str, str)
+    synchronizeOutlookFinished = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.resize(800, 500)
@@ -635,7 +643,24 @@ class MainWindow(QMainWindow):
 
         self.existingAlarmEntries = []
 
+        self.progressDialog: QProgressDialog = None
+        self.progressDialogSetValue.connect(
+            lambda value: (
+                self.progressDialog.setRange(0, 0 if value == -1 else 100),
+                self.progressDialog.setValue(value),
+            )
+        )
+        self.progressDialogSetLabel.connect(
+            lambda text: self.progressDialog.setLabelText(text)
+        )
+        self.progressDialogClose.connect(lambda: self.progressDialog.close())
+        self.openMessageBox.connect(self.openMessageBoxFunction)
+        self.synchronizeOutlookFinished.connect(self.synchronizeOutlookFinishedFunction)
+
         self.loadConfig()
+
+    def openMessageBoxFunction(self, type, title, text):
+        getattr(QMessageBox, type)(self, title, text)
 
     def addNewAlarm(self):
         self.newAlarmWindow = EditAlarmWindow()
@@ -658,15 +683,22 @@ class MainWindow(QMainWindow):
         self.outlookMenu.show()
 
     def connectWithOutlook(self):
+        self.progressDialogSetValue.emit(0)
+        self.progressDialogSetLabel.emit("Connecting with Outlook...")
         try:
             from selenium import webdriver  # type: ignore
             from selenium.webdriver import ChromeOptions, ChromeService  # type: ignore
             from selenium.common.exceptions import NoSuchDriverException  # type: ignore
         except ImportError:
-            QMessageBox.critical(
-                self, "Missing libraries", "You need Selenium for Python installed."
+            self.progressDialogClose.emit()
+            self.openMessageBox.emit(
+                "critical",
+                "Missing libraries",
+                "You need Selenium for Python installed.",
             )
             return
+
+        self.progressDialogSetValue.emit(20)
 
         options = ChromeOptions()
         options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
@@ -677,12 +709,15 @@ class MainWindow(QMainWindow):
         try:
             driver = webdriver.Chrome(options=options, service=service)
         except NoSuchDriverException:
-            QMessageBox.critical(
-                self,
+            self.progressDialogClose.emit()
+            self.openMessageBox.emit(
+                "critical",
                 "Missing libraries",
                 "You have Selenium for Python installed, but are missing the ChromeDriver.",
             )
             return
+
+        self.progressDialogSetValue.emit(40)
 
         driver.get("https://outlook.office.com")
 
@@ -690,16 +725,24 @@ class MainWindow(QMainWindow):
             while "https://login.microsoftonline.com" not in driver.current_url:
                 driver.implicitly_wait(1)
 
+            self.progressDialogSetValue.emit(60)
+            self.progressDialogSetLabel.emit("Please enter your login credentials")
+
             while "https://outlook.office.com/mail" not in driver.current_url:
                 driver.implicitly_wait(1)
+
+            self.progressDialogSetLabel.emit("Connecting with Outlook...")
+            self.progressDialogSetValue.emit(80)
         except Exception:
-            QMessageBox.information(
-                self,
+            self.progressDialogClose.emit()
+            self.openMessageBox.emit(
+                "information",
                 "Cancelled",
                 "Login has been cancelled. Not synchronizing.",
             )
             return
 
+        self.progressDialogSetValue.emit(90)
         app.outlookToken = ""
         while app.outlookToken == "":
             for i in driver.get_log("performance"):
@@ -728,13 +771,22 @@ class MainWindow(QMainWindow):
             sleep(1)
 
         driver.close()
+        self.progressDialogSetValue.emit(95)
 
-        self.synchronizeOutlook()
+        self.synchronizeOutlookBlocking()
 
     def synchronizeOutlook(self):
+        self.progressDialog = QProgressDialog("Initializing...", None, 0, 100, self)
+        self.progressDialog.show()
+        threading.Thread(target=self.synchronizeOutlookBlocking).start()
+
+    def synchronizeOutlookBlocking(self):
         if app.outlookToken == "":
             self.connectWithOutlook()
             return
+
+        self.progressDialogSetValue.emit(-1)
+        self.progressDialogSetLabel.emit("Downloading reminders...")
 
         now = datetime.now(timezone.utc)
 
@@ -784,11 +836,15 @@ class MainWindow(QMainWindow):
 
             app.outlookReminders.append(outlookReminder)
 
+        self.synchronizeOutlookFinished.emit()
+
+    def synchronizeOutlookFinishedFunction(self):
         self.saveConfig()
         self.reloadAlarms()
 
-        QMessageBox.information(
-            self,
+        self.progressDialog.close()
+        self.openMessageBox.emit(
+            "information",
             "Outlook Reminders",
             "Successfully imported "
             + str(len(app.outlookReminders))
