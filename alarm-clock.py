@@ -10,6 +10,7 @@ import requests
 import urllib
 import shutil
 import threading
+import math
 from time import sleep
 from datetime import datetime, time, timezone, timedelta
 from PyQt6.QtCore import Qt, QTimer, QTime, QSize, pyqtSignal
@@ -66,6 +67,9 @@ class OutlookReminder:
         self.startDate = datetime.now()
         self.endDate = datetime.now()
 
+        self.notificationId = None
+        self.notificationProcess: subprocess.Popen | None = None
+
 
 class Application(QApplication):
     def __init__(self, argv):
@@ -113,8 +117,79 @@ class Application(QApplication):
         self.timer.setInterval(500)
         self.timer.start()
 
+    def showOutlookReminderNotification(self, reminder: OutlookReminder):
+        if (
+            reminder.notificationProcess is not None
+            and reminder.notificationProcess.poll() is not None
+        ):
+            return
+
+        current_time = datetime.now()
+
+        summary = reminder.subject
+
+        formattedStartTime = (
+            reminder.startDate.astimezone(current_time.tzinfo)
+            .time()
+            .strftime("%H:%M:%S")
+        )
+        formattedEndTime = (
+            reminder.endDate.astimezone(current_time.tzinfo).time().strftime("%H:%M:%S")
+        )
+
+        in_minutes = math.ceil(
+            (reminder.startDate - current_time.astimezone(timezone.utc)).total_seconds()
+            / 60
+        )
+
+        if in_minutes == 0:
+            in_minutes_text = "Now"
+        elif in_minutes == 1:
+            in_minutes_text = "In less than a minute"
+        else:
+            in_minutes_text = "In " + str(in_minutes) + " minutes"
+
+        body = (
+            in_minutes_text
+            + "\n"
+            + reminder.location
+            + ", at "
+            + formattedStartTime
+            + " - "
+            + formattedEndTime
+        )
+
+        arguments = [
+            "stdbuf",
+            "-oL",
+            "notify-send",
+            "--urgency=critical",
+            "--expire-time=60000",
+            "--wait",
+            "--app-name=Alarm Clock",
+            "--icon=alarm-symbolic",
+            summary,
+            body,
+        ]
+
+        if reminder.notificationId is None:
+            arguments.append("--print-id")
+        else:
+            arguments.append("--replace-id=" + reminder.notificationId)
+
+        notificationProcess = subprocess.Popen(
+            arguments, stdout=subprocess.PIPE, text=True, bufsize=1
+        )
+
+        if reminder.notificationId is None:
+            reminder.notificationId = notificationProcess.stdout.readline().strip()
+            reminder.notificationProcess = notificationProcess
+
+            self.notificationProcesses.append(notificationProcess)
+
     def tick(self):
         current_tick = datetime.now()
+        current_tick_utc = current_tick.astimezone(timezone.utc)
 
         for alarm in self.alarms:
             if not alarm.enabled:
@@ -157,46 +232,29 @@ class Application(QApplication):
             mainWindow.reloadAlarms()
 
         for reminder in self.outlookReminders:
-            if reminder.reminderTime < self.last_tick.astimezone(
-                timezone.utc
-            ) or reminder.reminderTime > current_tick.astimezone(timezone.utc):
+            if reminder.reminderTime > current_tick_utc:
                 continue
 
-            summary = reminder.subject
+            if (
+                reminder.startDate > self.last_tick.astimezone(timezone.utc)
+                and reminder.startDate < current_tick_utc
+            ):
+                self.showOutlookReminderNotification(reminder)
+                continue
 
-            formattedStartTime = (
-                reminder.startDate.astimezone(current_tick.tzinfo)
-                .time()
-                .strftime("%H:%M:%S")
-            )
-            formattedEndTime = (
-                reminder.endDate.astimezone(current_tick.tzinfo)
-                .time()
-                .strftime("%H:%M:%S")
-            )
+            if reminder.startDate < current_tick_utc:
+                continue
 
-            body = (
-                "In "
-                + reminder.location
-                + ", at "
-                + formattedStartTime
-                + " - "
-                + formattedEndTime
-            )
+            if reminder.notificationProcess is not None:
+                next_minute = current_tick.replace(
+                    second=reminder.reminderTime.second,
+                    microsecond=reminder.reminderTime.microsecond,
+                )
 
-            notificationProcess = subprocess.Popen(
-                [
-                    "notify-send",
-                    "--urgency=critical",
-                    "--expire-time=60000",
-                    "--wait",
-                    "--app-name=Alarm Clock",
-                    "--icon=alarm-symbolic",
-                    summary,
-                    body,
-                ],
-            )
-            self.notificationProcesses.append(notificationProcess)
+                if next_minute < self.last_tick or next_minute > current_tick:
+                    continue
+
+            self.showOutlookReminderNotification(reminder)
 
         self.last_tick = current_tick
 
