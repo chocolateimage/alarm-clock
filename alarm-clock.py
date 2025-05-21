@@ -4,8 +4,6 @@ import sys
 import json
 import locale
 import calendar
-import subprocess
-import signal
 import requests
 import urllib
 import shutil
@@ -13,8 +11,18 @@ import threading
 import math
 from time import sleep
 from datetime import datetime, time, timezone, timedelta
-from PyQt6.QtCore import Qt, QTimer, QTime, QSize, pyqtSignal
+from PyQt6.QtCore import (
+    Qt,
+    QTimer,
+    QTime,
+    QSize,
+    pyqtSignal,
+    pyqtSlot,
+    QVariant,
+    QMetaType,
+)
 from PyQt6.QtGui import QIcon, QColor, QCursor
+from PyQt6.QtDBus import QDBusMessage, QDBusInterface, QDBusConnection
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -68,7 +76,6 @@ class OutlookReminder:
         self.endDate = datetime.now()
 
         self.notificationId = None
-        self.notificationProcess: subprocess.Popen | None = None
 
 
 class Application(QApplication):
@@ -109,7 +116,22 @@ class Application(QApplication):
         self.outlookReminders: list[OutlookReminder] = []
         self.outlookToken = ""
 
-        self.notificationProcesses: list[subprocess.Popen] = []
+        self.openNotifications: list[int] = []
+
+        self.notificationsInterface = QDBusInterface(
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+            QDBusConnection.sessionBus(),
+        )
+
+        QDBusConnection.sessionBus().connect(
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+            "NotificationClosed",
+            self.onNotificationClosed,
+        )
 
         self.last_tick = datetime.now()
         self.timer = QTimer(self)
@@ -117,10 +139,62 @@ class Application(QApplication):
         self.timer.setInterval(500)
         self.timer.start()
 
+    def showNotification(
+        self,
+        replacesId=None,
+        summary="",
+        body="",
+        actions=[],
+        hints={},
+        expireTimeout=-1,
+    ) -> int | None:
+        replacesIdVariant = QVariant(0 if replacesId is None else replacesId)
+        replacesIdVariant.convert(QMetaType(QMetaType.Type.UInt.value))
+
+        actionsVariant = QVariant(actions)
+        actionsVariant.convert(QMetaType(QMetaType.Type.QStringList.value))
+
+        message = self.notificationsInterface.call(
+            "Notify",
+            "Alarm Clock",
+            replacesIdVariant,
+            "alarm-symbolic",
+            summary,
+            body,
+            actionsVariant,
+            hints,
+            expireTimeout,
+        )
+
+        if message.type() == QDBusMessage.MessageType.ErrorMessage:
+            print(message.errorMessage())
+            return None
+
+        notificationId = message.arguments()[0]
+        return notificationId
+
+    def closeNotification(self, notificationId):
+        if notificationId not in self.openNotifications:
+            return
+
+        notificationIdVariant = QVariant(notificationId)
+        notificationIdVariant.convert(QMetaType(QMetaType.Type.UInt.value))
+
+        self.notificationsInterface.call("CloseNotification", notificationIdVariant)
+
+    @pyqtSlot(QDBusMessage)
+    def onNotificationClosed(self, message: QDBusMessage):
+        notificationId = message.arguments()[0]
+
+        if notificationId not in self.openNotifications:
+            return
+
+        self.openNotifications.remove(notificationId)
+
     def showOutlookReminderNotification(self, reminder: OutlookReminder):
         if (
-            reminder.notificationProcess is not None
-            and reminder.notificationProcess.poll() is not None
+            reminder.notificationId is not None
+            and reminder.notificationId not in self.openNotifications
         ):
             return
 
@@ -159,33 +233,21 @@ class Application(QApplication):
             + formattedEndTime
         )
 
-        arguments = [
-            "stdbuf",
-            "-oL",
-            "notify-send",
-            "--urgency=critical",
-            "--expire-time=60000",
-            "--wait",
-            "--app-name=Alarm Clock",
-            "--icon=alarm-symbolic",
-            summary,
-            body,
-        ]
-
-        if reminder.notificationId is None:
-            arguments.append("--print-id")
-        else:
-            arguments.append("--replace-id=" + reminder.notificationId)
-
-        notificationProcess = subprocess.Popen(
-            arguments, stdout=subprocess.PIPE, text=True, bufsize=1
+        newNotificationId = self.showNotification(
+            replacesId=reminder.notificationId,
+            summary=summary,
+            body=body,
+            hints={"urgency": 2},
+            expireTimeout=0,
         )
 
-        if reminder.notificationId is None:
-            reminder.notificationId = notificationProcess.stdout.readline().strip()
-            reminder.notificationProcess = notificationProcess
+        if newNotificationId is None:
+            return
 
-            self.notificationProcesses.append(notificationProcess)
+        if reminder.notificationId is None:
+            reminder.notificationId = newNotificationId
+
+            self.openNotifications.append(reminder.notificationId)
 
     def tick(self):
         current_tick = datetime.now()
@@ -211,19 +273,15 @@ class Application(QApplication):
                 + " is going off!"
             )
 
-            notificationProcess = subprocess.Popen(
-                [
-                    "notify-send",
-                    "--urgency=critical",
-                    "--expire-time=60000",
-                    "--wait",
-                    "--app-name=Alarm Clock",
-                    "--icon=alarm-symbolic",
-                    summary,
-                    body,
-                ],
+            notificationId = self.showNotification(
+                summary=summary,
+                body=body,
+                hints={"urgency": 2},
+                expireTimeout=0,
             )
-            self.notificationProcesses.append(notificationProcess)
+
+            if notificationId is not None:
+                self.openNotifications.append(notificationId)
 
             if len(alarm.repeat) == 0:
                 alarm.enabled = False
@@ -245,7 +303,7 @@ class Application(QApplication):
             if reminder.startDate < current_tick_utc:
                 continue
 
-            if reminder.notificationProcess is not None:
+            if reminder.notificationId is not None:
                 next_minute = current_tick.replace(
                     second=reminder.reminderTime.second,
                     microsecond=reminder.reminderTime.microsecond,
@@ -1040,7 +1098,7 @@ if __name__ == "__main__":
     exitCode = app.exec()
 
     # Cancel open notifications with CTRL+C signal
-    for i in app.notificationProcesses:
-        i.send_signal(signal.SIGINT)
+    for i in app.openNotifications:
+        app.closeNotification(i)
 
     sys.exit(exitCode)
