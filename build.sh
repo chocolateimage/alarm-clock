@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.3.0-1
+VERSION=1.3.1-1
 
 DIRECTORY_NAME="alarm-clock-$VERSION"
 

@@ -92,7 +92,7 @@ class Application(QApplication):
         super().__init__(argv)
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
-        self.setApplicationVersion("1.3.0")
+        self.setApplicationVersion("1.3.1")
 
         self.debug = os.environ.get("ALARMCLOCK_DEBUG", "0") == "1"
         self.setQuitOnLastWindowClosed(self.debug)
