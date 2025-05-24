@@ -42,6 +42,7 @@ from PyQt6.QtWidgets import (
     QGraphicsOpacityEffect,
     QMessageBox,
     QProgressDialog,
+    QSpinBox,
 )
 
 
@@ -71,11 +72,18 @@ class OutlookReminder:
         self.id = ""
         self.subject = ""
         self.location = ""
-        self.reminderTime = datetime.now()
+        self._reminderTime = datetime.now()
         self.startDate = datetime.now()
         self.endDate = datetime.now()
 
         self.notificationId = None
+
+    @property
+    def reminderTime(self):
+        if app.forcedOutlookReminderMinutes == -1:
+            return self._reminderTime
+        else:
+            return self.startDate - timedelta(minutes=app.forcedOutlookReminderMinutes)
 
 
 class Application(QApplication):
@@ -115,6 +123,7 @@ class Application(QApplication):
         self.alarms: list[Alarm] = []
         self.outlookReminders: list[OutlookReminder] = []
         self.outlookToken = ""
+        self.forcedOutlookReminderMinutes = -1
 
         self.openNotifications: list[int] = []
 
@@ -663,6 +672,23 @@ class PreferencesWindow(QWidget):
 
         self.boxLayout.addWidget(self.autostartCheckBox)
 
+        rowLayout = QHBoxLayout()
+        rowLayout.setContentsMargins(0, 0, 0, 0)
+        label = QLabel(self)
+        label.setText("Override Outlook reminder: ")
+        rowLayout.addWidget(label)
+
+        self.forcedReminderTime = QSpinBox(self)
+        self.forcedReminderTime.setSuffix(" minutes")
+        self.forcedReminderTime.setMinimum(-1)
+        self.forcedReminderTime.setMaximum(10000)
+        self.forcedReminderTime.setSpecialValueText("Default")
+        self.forcedReminderTime.setValue(app.forcedOutlookReminderMinutes)
+        self.forcedReminderTime.editingFinished.connect(self.onForcedReminderTimeChange)
+        rowLayout.addWidget(self.forcedReminderTime)
+
+        self.boxLayout.addLayout(rowLayout)
+
     def onAutostartChange(self, newAutostart):
         if not newAutostart:
             if os.path.exists(self.autostartFilepath):
@@ -678,6 +704,10 @@ Exec="{__file__}" hidden
 Terminal=false
 Type=Application
 Categories=""")
+
+    def onForcedReminderTimeChange(self):
+        app.forcedOutlookReminderMinutes = self.forcedReminderTime.value()
+        mainWindow.saveConfig()
 
 
 class MainWindow(QMainWindow):
@@ -944,7 +974,7 @@ class MainWindow(QMainWindow):
             outlookReminder.id = rawReminder["UID"]
             outlookReminder.subject = rawReminder["Subject"]
             outlookReminder.location = rawReminder["Location"]
-            outlookReminder.reminderTime = datetime.fromisoformat(
+            outlookReminder._reminderTime = datetime.fromisoformat(
                 rawReminder["ReminderTime"]
             )
             outlookReminder.startDate = datetime.fromisoformat(rawReminder["StartDate"])
@@ -988,7 +1018,7 @@ class MainWindow(QMainWindow):
                 reminder.id = rawReminder["id"]
                 reminder.subject = rawReminder["subject"]
                 reminder.location = rawReminder["location"]
-                reminder.reminderTime = datetime.fromisoformat(
+                reminder._reminderTime = datetime.fromisoformat(
                     rawReminder["reminderTime"]
                 )
                 reminder.startDate = datetime.fromisoformat(rawReminder["startDate"])
@@ -997,6 +1027,9 @@ class MainWindow(QMainWindow):
                 app.outlookReminders.append(reminder)
 
             app.outlookToken = config.get("outlookToken", "")
+            app.forcedOutlookReminderMinutes = config.get(
+                "forcedOutlookReminderMinutes", -1
+            )
 
         self.reloadAlarms()
 
@@ -1020,13 +1053,14 @@ class MainWindow(QMainWindow):
             rawReminder["id"] = reminder.id
             rawReminder["subject"] = reminder.subject
             rawReminder["location"] = reminder.location
-            rawReminder["reminderTime"] = reminder.reminderTime.isoformat()
+            rawReminder["reminderTime"] = reminder._reminderTime.isoformat()
             rawReminder["startDate"] = reminder.startDate.isoformat()
             rawReminder["endDate"] = reminder.endDate.isoformat()
 
             config["outlookReminders"].append(rawReminder)
 
         config["outlookToken"] = app.outlookToken
+        config["forcedOutlookReminderMinutes"] = app.forcedOutlookReminderMinutes
 
         with open(app.configFile, "w+") as f:
             json.dump(config, f)
