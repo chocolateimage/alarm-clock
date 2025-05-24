@@ -20,6 +20,7 @@ from PyQt6.QtCore import (
     pyqtSlot,
     QVariant,
     QMetaType,
+    QEvent,
 )
 from PyQt6.QtGui import QIcon, QColor, QCursor
 from PyQt6.QtDBus import QDBusMessage, QDBusInterface, QDBusConnection
@@ -357,6 +358,8 @@ class EditAlarmWindow(QWidget):
         self.timeEntry.setTime(
             QTime(self.alarm.time.hour, self.alarm.time.minute, self.alarm.time.second)
         )
+
+        self.timeEntry.installEventFilter(self)
         self.boxLayout.addWidget(self.timeEntry)
 
         self.repeatOptionsLayout = QVBoxLayout()
@@ -447,6 +450,15 @@ class EditAlarmWindow(QWidget):
         self.buttonsLayout.addWidget(self.cancelButton)
 
         self.boxLayout.addLayout(self.buttonsLayout, 1)
+
+    def eventFilter(self, obj, event):
+        if obj == self.timeEntry:
+            if event.type() == QEvent.Type.KeyPress:
+                if event.key() == Qt.Key.Key_Return:
+                    self.save()
+                    return True
+
+        return super().eventFilter(obj, event)
 
     def toggleRepeatButton(self, day):
         if day in self.unsavedRepeatDays:
