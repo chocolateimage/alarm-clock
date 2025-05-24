@@ -21,6 +21,7 @@ from PyQt6.QtCore import (
     QVariant,
     QMetaType,
     QEvent,
+    QObject,
 )
 from PyQt6.QtGui import QIcon, QColor, QCursor
 from PyQt6.QtDBus import QDBusMessage, QDBusInterface, QDBusConnection
@@ -45,6 +46,9 @@ from PyQt6.QtWidgets import (
     QProgressDialog,
     QSpinBox,
 )
+
+
+SERVICE_NAME = "me.chocolateimage.AlarmClock"
 
 
 def createCustomFont(size=10, weight=400):
@@ -87,9 +91,33 @@ class OutlookReminder:
             return self.startDate - timedelta(minutes=app.forcedOutlookReminderMinutes)
 
 
+class AlarmClockDBus(QObject):
+    @pyqtSlot()
+    def show(self):
+        app.openMainWindow()
+
+
 class Application(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
+        sessionBus = QDBusConnection.sessionBus()
+        if not sessionBus.registerService(SERVICE_NAME):
+            print("Foregrounding existing alarm clock instance...")
+            alarmClockInterface = QDBusInterface(
+                SERVICE_NAME,
+                "/",
+                "",
+                sessionBus,
+            )
+            message = alarmClockInterface.call("show")
+            if message.type() != QDBusMessage.MessageType.ErrorMessage:
+                exit(0)
+
+        self.alarmClockDBus = AlarmClockDBus()
+        sessionBus.registerObject(
+            "/", self.alarmClockDBus, QDBusConnection.RegisterOption.ExportAllSlots
+        )
+
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
         self.setApplicationVersion("1.3.1")
@@ -132,10 +160,10 @@ class Application(QApplication):
             "org.freedesktop.Notifications",
             "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications",
-            QDBusConnection.sessionBus(),
+            sessionBus,
         )
 
-        QDBusConnection.sessionBus().connect(
+        sessionBus.connect(
             "org.freedesktop.Notifications",
             "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications",
