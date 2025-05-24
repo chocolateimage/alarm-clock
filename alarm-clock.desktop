@@ -1,0 +1,10 @@
+[Desktop Entry]
+Comment=A simple alarm clock
+Exec=alarm-clock
+Name=Alarm Clock
+StartupNotify=true
+Type=Application
+Categories=Qt;Utility;
+Terminal=false
+Icon=alarm-symbolic
+Keywords=Alarm;Clock;Reminder;Outlook;Timer;
