@@ -118,6 +118,7 @@ class Application(QApplication):
             "/", self.alarmClockDBus, QDBusConnection.RegisterOption.ExportAllSlots
         )
 
+        self.setDesktopFileName("alarm-clock")
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
         self.setApplicationVersion("1.3.1")
