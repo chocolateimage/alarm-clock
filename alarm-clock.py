@@ -137,6 +137,8 @@ class Application(QApplication):
         self.configDirectory = os.path.expanduser("~/.local/share/alarm-clock")
         self.configFile = self.configDirectory + "/config.json"
 
+        self.fixIconTheme()
+
         self.trayIcon = QSystemTrayIcon(self)
         self.trayIcon.setIcon(getIcon("alarm-symbolic", "alarm-symbolic.symbolic"))
         self.trayIcon.setToolTip("Alarm Clock")
@@ -185,6 +187,19 @@ class Application(QApplication):
         self.timer.timeout.connect(self.tick)
         self.timer.setInterval(500)
         self.timer.start()
+
+    def fixIconTheme(self):
+        originalIconTheme = QIcon.themeName()
+
+        if not QIcon.hasThemeIcon("alarm-symbolic") and not QIcon.hasThemeIcon(
+            "alarm-symbolic.symbolic"
+        ):
+            QIcon.setThemeName("Adwaita")
+
+        if self.palette().base().color().red() < 128:
+            QIcon.setThemeName("breeze-dark")
+            if not QIcon.hasThemeIcon("list-add-symbolic"):
+                QIcon.setThemeName(originalIconTheme)
 
     def showNotification(
         self,
@@ -1196,18 +1211,7 @@ if __name__ == "__main__":
     os.environ["QT_QPA_PLATFORMTHEME"] = ""  # Allows dark mode in Qt6
     locale.setlocale(locale.LC_ALL, "")
 
-    originalIconTheme = QIcon.themeName()
-
-    if not QIcon.hasThemeIcon("alarm-symbolic") and not QIcon.hasThemeIcon(
-        "alarm-symbolic.symbolic"
-    ):
-        QIcon.setThemeName("Adwaita")
-
     app = Application(sys.argv)
-    if app.palette().base().color().red() < 128:
-        QIcon.setThemeName("breeze-dark")
-        if not QIcon.hasThemeIcon("list-add-symbolic"):
-            QIcon.setThemeName(originalIconTheme)
 
     mainWindow = MainWindow()
     if "hidden" not in sys.argv:
