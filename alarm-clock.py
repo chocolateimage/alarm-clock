@@ -64,6 +64,14 @@ def getGrayColor():
     return color.name(QColor.NameFormat.HexArgb)
 
 
+def getIcon(*names):
+    for name in names:
+        if QIcon.hasThemeIcon(name):
+            return QIcon.fromTheme(name)
+
+    return QIcon()
+
+
 class Alarm:
     def __init__(self):
         self.name = ""
@@ -130,7 +138,7 @@ class Application(QApplication):
         self.configFile = self.configDirectory + "/config.json"
 
         self.trayIcon = QSystemTrayIcon(self)
-        self.trayIcon.setIcon(QIcon.fromTheme("alarm-symbolic"))
+        self.trayIcon.setIcon(getIcon("alarm-symbolic", "alarm-symbolic.symbolic"))
         self.trayIcon.setToolTip("Alarm Clock")
 
         self.trayMenu = QMenu()
@@ -1159,9 +1167,15 @@ if __name__ == "__main__":
     os.environ["QT_QPA_PLATFORMTHEME"] = ""  # Allows dark mode in Qt6
     locale.setlocale(locale.LC_ALL, "")
 
+    originalIconTheme = QIcon.themeName()
+
+    if not QIcon.hasThemeIcon("alarm-symbolic") and not QIcon.hasThemeIcon(
+        "alarm-symbolic.symbolic"
+    ):
+        QIcon.setThemeName("Adwaita")
+
     app = Application(sys.argv)
     if app.palette().base().color().red() < 128:
-        originalIconTheme = QIcon.themeName()
         QIcon.setThemeName("breeze-dark")
         if not QIcon.hasThemeIcon("list-add-symbolic"):
             QIcon.setThemeName(originalIconTheme)
