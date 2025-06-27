@@ -1172,7 +1172,7 @@ if __name__ == "__main__":
 
     exitCode = app.exec()
 
-    # Cancel open notifications with CTRL+C signal
+    # Cancel open notifications with D-Bus call
     for i in app.openNotifications:
         app.closeNotification(i)
 
