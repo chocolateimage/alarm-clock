@@ -879,7 +879,9 @@ class MainWindow(QMainWindow):
 
     def connectWithOutlook(self):
         self.progressDialogSetValue.emit(0)
-        self.progressDialogSetLabel.emit("Connecting with Outlook...")
+        self.progressDialogSetLabel.emit(
+            "Connecting with Outlook,\nthis may take a while..."
+        )
         try:
             from selenium import webdriver  # type: ignore
             from selenium.webdriver import ChromeOptions  # type: ignore
@@ -887,11 +889,26 @@ class MainWindow(QMainWindow):
             from selenium.common.exceptions import WebDriverException  # type: ignore
         except ImportError:
             self.progressDialogClose.emit()
-            self.openMessageBox.emit(
-                "critical",
-                "Missing libraries",
-                "You need Selenium for Python installed.",
-            )
+
+            if shutil.which("apt") is not None:
+                self.openMessageBox.emit(
+                    "critical",
+                    "Missing libraries",
+                    'You need Selenium for Python installed.\n\nTo install, run "sudo apt install python3-selenium" in a terminal.',
+                )
+            elif shutil.which("pacman") is not None:
+                self.openMessageBox.emit(
+                    "critical",
+                    "Missing libraries",
+                    'You need Selenium for Python (AUR: "python-selenium") installed.',
+                )
+            else:
+                self.openMessageBox.emit(
+                    "critical",
+                    "Missing libraries",
+                    "You need Selenium for Python installed.",
+                )
+
             return
 
         self.progressDialogSetValue.emit(20)
@@ -907,11 +924,19 @@ class MainWindow(QMainWindow):
         except WebDriverException as e:
             print(e)
             self.progressDialogClose.emit()
-            self.openMessageBox.emit(
-                "critical",
-                "Missing libraries",
-                "You have Selenium for Python installed, but are missing the ChromeDriver.",
-            )
+
+            if shutil.which("pacman") is not None:
+                self.openMessageBox.emit(
+                    "critical",
+                    "Missing libraries",
+                    'You have Selenium for Python installed, but are missing the ChromeDriver.\n\nThe AUR package "selenium-manager" will automatically install it for you. Alternatively, you can install the "chromium" package.',
+                )
+            else:
+                self.openMessageBox.emit(
+                    "critical",
+                    "Missing libraries",
+                    "You have Selenium for Python installed, but are missing the ChromeDriver.",
+                )
             return
 
         self.progressDialogSetValue.emit(40)
