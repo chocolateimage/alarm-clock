@@ -882,7 +882,8 @@ class MainWindow(QMainWindow):
         self.progressDialogSetLabel.emit("Connecting with Outlook...")
         try:
             from selenium import webdriver  # type: ignore
-            from selenium.webdriver import ChromeOptions, ChromeService  # type: ignore
+            from selenium.webdriver import ChromeOptions  # type: ignore
+            from selenium.webdriver.chrome.service import Service as ChromeService  # type: ignore
             from selenium.common.exceptions import NoSuchDriverException  # type: ignore
         except ImportError:
             self.progressDialogClose.emit()
