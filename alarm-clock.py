@@ -140,7 +140,9 @@ class Application(QApplication):
         self.fixIconTheme()
 
         self.trayIcon = QSystemTrayIcon(self)
-        self.trayIcon.setIcon(getIcon("alarm-symbolic", "alarm-symbolic.symbolic"))
+        self.trayIcon.setIcon(
+            getIcon("alarm", "alarm-symbolic", "alarm-symbolic.symbolic")
+        )
         self.trayIcon.setToolTip("Alarm Clock")
 
         self.trayMenu = QMenu()
@@ -191,8 +193,10 @@ class Application(QApplication):
     def fixIconTheme(self):
         originalIconTheme = QIcon.themeName()
 
-        if not QIcon.hasThemeIcon("alarm-symbolic") and not QIcon.hasThemeIcon(
-            "alarm-symbolic.symbolic"
+        if (
+            not QIcon.hasThemeIcon("alarm-symbolic")
+            and not QIcon.hasThemeIcon("alarm")
+            and not QIcon.hasThemeIcon("alarm-symbolic.symbolic")
         ):
             QIcon.setThemeName("Adwaita")
 
