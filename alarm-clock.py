@@ -607,10 +607,12 @@ class AlarmEntryWidget(QFrame):
                     "/usr/share/icons/breeze-dark/actions/16/document-edit.svg",
                     "/usr/share/icons/breeze-dark/actions/32/document-edit.svg",
                     "/usr/share/icons/Adwaita/symbolic/actions/document-edit-symbolic.svg",
+                    "/usr/share/icons/Adwaita/scalable/actions/document-edit-symbolic.svg",
                 ]
                 if darkMode
                 else [
                     "/usr/share/icons/Adwaita/symbolic/actions/document-edit-symbolic.svg",
+                    "/usr/share/icons/Adwaita/scalable/actions/document-edit-symbolic.svg",
                     "/usr/share/icons/Papirus/symbolic/actions/document-edit-symbolic.svg",
                     "/usr/share/icons/breeze/actions/symbolic/document-edit-symbolic.svg",
                     "/usr/share/icons/breeze/actions/22/document-edit.svg",
