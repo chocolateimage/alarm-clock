@@ -884,7 +884,7 @@ class MainWindow(QMainWindow):
             from selenium import webdriver  # type: ignore
             from selenium.webdriver import ChromeOptions  # type: ignore
             from selenium.webdriver.chrome.service import Service as ChromeService  # type: ignore
-            from selenium.common.exceptions import NoSuchDriverException  # type: ignore
+            from selenium.common.exceptions import WebDriverException  # type: ignore
         except ImportError:
             self.progressDialogClose.emit()
             self.openMessageBox.emit(
@@ -904,7 +904,8 @@ class MainWindow(QMainWindow):
 
         try:
             driver = webdriver.Chrome(options=options, service=service)
-        except NoSuchDriverException:
+        except WebDriverException as e:
+            print(e)
             self.progressDialogClose.emit()
             self.openMessageBox.emit(
                 "critical",
