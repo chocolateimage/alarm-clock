@@ -524,7 +524,11 @@ class EditAlarmWindow(QWidget):
             self.unsavedRepeatDays.append(day)
             self.unsavedRepeatDays.sort()
             self.repeatCheckBoxes[day].setStyleSheet(
-                "background: " + self.palette().base().color().name() + ";"
+                "background: "
+                + self.palette().highlight().color().darker().name()
+                + "; color: "
+                + self.palette().highlightedText().color().name()
+                + ";"
             )
 
     def updateRepeatState(self, check):
