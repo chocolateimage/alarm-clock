@@ -23,7 +23,7 @@ from PyQt6.QtCore import (
     QEvent,
     QObject,
 )
-from PyQt6.QtGui import QIcon, QColor, QCursor
+from PyQt6.QtGui import QIcon, QColor, QCursor, QAction
 from PyQt6.QtDBus import QDBusMessage, QDBusInterface, QDBusConnection
 from PyQt6.QtWidgets import (
     QApplication,
@@ -99,6 +99,12 @@ class OutlookReminder:
             return self.startDate - timedelta(minutes=app.forcedOutlookReminderMinutes)
 
 
+class QuickCreateAction:
+    def __init__(self):
+        self.minutes = 0
+        self.action: QAction = None
+
+
 class AlarmClockDBus(QObject):
     @pyqtSlot()
     def show(self):
@@ -152,7 +158,22 @@ class Application(QApplication):
             QIcon.fromTheme("arrow-up-symbolic"), "&Open"
         )
         self.openAction.triggered.connect(self.openMainWindow)
+
+        self.quickCreateMenu = self.trayMenu.addMenu(
+            QIcon.fromTheme("list-add-symbolic"), "Quick &create"
+        )
+        self.quickCreateMenu.aboutToShow.connect(self.updateQuickCreate)
+
+        self.quickCreateActions: list[QuickCreateAction] = []
+
+        self.addQuickCreateTimer(5)
+        self.addQuickCreateTimer(10)
+        self.addQuickCreateTimer(15)
+        self.addQuickCreateTimer(20)
+        self.addQuickCreateTimer(30)
+
         self.trayMenuBottomSeparator = self.trayMenu.addSeparator()
+
         self.quitAction = self.trayMenu.addAction(
             QIcon.fromTheme("application-exit-symbolic"), "&Quit"
         )
@@ -189,6 +210,37 @@ class Application(QApplication):
         self.timer.timeout.connect(self.tick)
         self.timer.setInterval(500)
         self.timer.start()
+
+    def addQuickCreateTimer(self, minutes):
+        action = QuickCreateAction()
+        action.action = self.quickCreateMenu.addAction(f"{minutes} minutes")
+        action.action.triggered.connect(lambda: self.addQuickCreate(action))
+        action.minutes = minutes
+        self.quickCreateActions.append(action)
+
+    def updateQuickCreate(self):
+        for i in self.quickCreateActions:
+            then = datetime.now() + timedelta(minutes=i.minutes)
+            i.action.setText(f"{i.minutes} minutes - {then.strftime('%H:%M')}")
+
+    def addQuickCreate(self, action: QuickCreateAction):
+        then = datetime.now() + timedelta(minutes=action.minutes)
+        alarm = Alarm()
+
+        alarm.time = then.time()
+
+        alarm.name = f"Quick-created {action.minutes} minute timer"
+
+        self.alarms.append(alarm)
+
+        mainWindow.reloadAlarms()
+        mainWindow.saveConfig()
+
+        self.showNotification(
+            summary=f"{action.minutes} minute timer created",
+            body=f"The {action.minutes} minute timer will go off at {then.strftime('%H:%M:%S')}",
+            hints={"transient": True},
+        )
 
     def fixIconTheme(self):
         originalIconTheme = QIcon.themeName()
@@ -800,18 +852,23 @@ class MainWindow(QMainWindow):
         self.toolBar = self.addToolBar("Toolbar")
         self.toolBar.setObjectName("toolBar")
         self.toolBar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+
         self.toolBar.addAction(
             QIcon.fromTheme("list-add-symbolic"), "Add new alarm…"
         ).triggered.connect(self.addNewAlarm)
+
+        self.toolBar.addSeparator()
+
+        self.outlookAction = self.toolBar.addAction(
+            QIcon.fromTheme("mail-client"), "&Outlook"
+        )
+
         self.toolBar.addAction(
             QIcon.fromTheme("preferences-system-symbolic"), "Preferences"
         ).triggered.connect(self.openPreferences)
 
-        self.outlookAction = self.toolBar.addAction(
-            QIcon.fromTheme("mail-client"), "Outlook"
-        )
         self.outlookMenu = QMenu()
-        self.synchronizeAction = self.outlookMenu.addAction("Synchronize...")
+        self.synchronizeAction = self.outlookMenu.addAction("&Synchronize...")
         self.synchronizeAction.setIcon(QIcon.fromTheme("mail-download-later-symbolic"))
         self.synchronizeAction.triggered.connect(self.synchronizeOutlook)
         self.reminderCountAction = self.outlookMenu.addAction("")
