@@ -135,7 +135,7 @@ class Application(QApplication):
         self.setDesktopFileName("alarm-clock")
         self.setApplicationName("alarm-clock")
         self.setApplicationDisplayName("Alarm Clock")
-        self.setApplicationVersion("1.3.1")
+        self.setApplicationVersion("1.4.0")
 
         self.debug = os.environ.get("ALARMCLOCK_DEBUG", "0") == "1"
         self.setQuitOnLastWindowClosed(self.debug)
